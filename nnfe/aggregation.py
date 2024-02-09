@@ -12,7 +12,7 @@ from sklearn.decomposition import LatentDirichletAllocation
 from sklearn.preprocessing import minmax_scale
 
 from nnfe.neighbor import TimeIdNeighbor, EntityIdNeighbor, Neighbor, MAX_ENTITYID_NEIGHBORS, MAX_TIMEID_NEIGHBORS
-from typing import Dict, List, Optional
+from typing import List, Optional
 
 def print_trace(name: str = ''):
     print(f'ERROR RAISED IN {name or "anonymous"}')
