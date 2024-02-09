@@ -1,21 +1,11 @@
 import warnings
 warnings.filterwarnings('ignore')
 
-import argparse
 import pandas as pd
 import numpy as np
-import seaborn as sns
-import copy
 
-from joblib import Parallel, delayed
-
-from sklearn.decomposition import LatentDirichletAllocation
 from sklearn.neighbors import NearestNeighbors
-from sklearn.preprocessing import minmax_scale
-from tqdm import tqdm_notebook as tqdm
-
-from enum import Enum
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, Optional
 
 MAX_ENTITYID_NEIGHBORS = 15 # for entity_id aggregated neighbors
 MAX_TIMEID_NEIGHBORS = 40 # for time_id aggregated neighbors

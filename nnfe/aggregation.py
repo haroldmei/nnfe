@@ -1,23 +1,18 @@
 import warnings
 warnings.filterwarnings('ignore')
 
-import argparse
 import pandas as pd
 import numpy as np
-import seaborn as sns
 import copy
 import traceback
 
 from joblib import Parallel, delayed
 
 from sklearn.decomposition import LatentDirichletAllocation
-from sklearn.neighbors import NearestNeighbors
 from sklearn.preprocessing import minmax_scale
-from tqdm import tqdm_notebook as tqdm
 
 from nnfe.neighbor import TimeIdNeighbor, EntityIdNeighbor, Neighbor, MAX_ENTITYID_NEIGHBORS, MAX_TIMEID_NEIGHBORS
-from enum import Enum
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 def print_trace(name: str = ''):
     print(f'ERROR RAISED IN {name or "anonymous"}')
