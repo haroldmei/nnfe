@@ -17,13 +17,15 @@ from tqdm import tqdm_notebook as tqdm
 from enum import Enum
 from typing import Dict, List, Optional, Tuple
 
-MAX_ENTITYID_NEIGHBORS = 25 # for entity_id aggregated neighbors
-MAX_TIMEID_NEIGHBORS = 200 # for time_id aggregated neighbors
+MAX_ENTITYID_NEIGHBORS = 15 # for entity_id aggregated neighbors
+MAX_TIMEID_NEIGHBORS = 40 # for time_id aggregated neighbors
 
 class Neighbor:
     def __init__(self, 
                  name: str, 
                  pivot: pd.DataFrame, 
+                 time_id: str, 
+                 entity_id: str,
                  p: float, 
                  metric: str = 'minkowski', 
                  metric_params: Optional[Dict] = None, 
@@ -42,6 +44,8 @@ class Neighbor:
             num_neibors (int, optional): The number of neighbors to generate. Defaults to MAX_ENTITYID_NEIGHBORS.
         """
         self.name = name
+        self.time_id = time_id
+        self.entity_id = entity_id
         self.exclude_self = exclude_self
         self.p = p
         self.metric = metric
@@ -101,7 +105,7 @@ class Neighbor:
         )
 
         dst = pivot_aggs.unstack().reset_index()
-        dst.columns = ['entity_id', 'time_id', f'{self.feature_col}_knn_{n}_{self.name}_{agg.__name__}']
+        dst.columns = [self.entity_id, self.time_id, f'{self.feature_col}_knn_{n}_{self.name}_{agg.__name__}']
         return dst
 
 class TimeIdNeighbor(Neighbor):
@@ -127,7 +131,7 @@ class TimeIdNeighbor(Neighbor):
             self.neighbors[i, :idx.shape[0]] = self.neighbors[i, np.sort(idx)]
             self.neighbors[i, idx.shape[0]:] = self.neighbors[i, np.sort(idx)[-1]] #i
 
-        feature_pivot = df.pivot(index='time_id', columns='entity_id', values=feature_col)
+        feature_pivot = df.pivot(index=self.time_id, columns=self.entity_id, values=feature_col)
         feature_pivot = feature_pivot.fillna(feature_pivot.mean())
         feature_pivot.head()
 
@@ -165,7 +169,7 @@ class EntityIdNeighbor(Neighbor):
         Returns:
             None
         """
-        feature_pivot = df.pivot(index='time_id', columns='entity_id', values=feature_col)
+        feature_pivot = df.pivot(index=self.time_id, columns=self.entity_id, values=feature_col)
         feature_pivot = feature_pivot.fillna(feature_pivot.mean())
         feature_values = np.zeros((MAX_ENTITYID_NEIGHBORS, *feature_pivot.shape))
         for i in range(MAX_ENTITYID_NEIGHBORS):

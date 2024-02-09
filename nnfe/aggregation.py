@@ -15,7 +15,7 @@ from sklearn.neighbors import NearestNeighbors
 from sklearn.preprocessing import minmax_scale
 from tqdm import tqdm_notebook as tqdm
 
-from neighbor import TimeIdNeighbor, EntityIdNeighbor, Neighbor, MAX_ENTITYID_NEIGHBORS, MAX_TIMEID_NEIGHBORS
+from nnfe.neighbor import TimeIdNeighbor, EntityIdNeighbor, Neighbor, MAX_ENTITYID_NEIGHBORS, MAX_TIMEID_NEIGHBORS
 from enum import Enum
 from typing import Dict, List, Optional, Tuple
 
@@ -23,14 +23,14 @@ def print_trace(name: str = ''):
     print(f'ERROR RAISED IN {name or "anonymous"}')
     print(traceback.format_exc())
 
-def tid_neighbor(df, vals, metric='minowski', num_neibors=MAX_TIMEID_NEIGHBORS):
+def tid_neighbor(df, vals, metric='minkowski', num_neibors=MAX_TIMEID_NEIGHBORS):
     """
     Load time-id neighbor based on the given dataframe and parameters.
 
     Args:
         df (pandas.DataFrame): The input dataframe.
         vals (str): The column name of the values to be used for neighbor calculation.
-        metric (str, optional): The distance metric to be used for neighbor calculation. Defaults to 'minowski'.
+        metric (str, optional): The distance metric to be used for neighbor calculation. Defaults to 'minkowski'.
         num_neibors (int, optional): The number of neighbors to be considered. Defaults to MAX_TIMEID_NEIGHBORS.
 
     Returns:
@@ -39,16 +39,41 @@ def tid_neighbor(df, vals, metric='minowski', num_neibors=MAX_TIMEID_NEIGHBORS):
     Raises:
         ValueError: If the given metric is not supported.
     """
-    pivot = df.pivot(index='time_id', columns='entity_id', values=vals)
+    time_id = df.columns[0]
+    entity_id = df.columns[1]
+    pivot = df.pivot(index=time_id, columns=entity_id, values=vals)
     pivot = pivot.fillna(pivot.mean())
     pivot = pd.DataFrame(minmax_scale(pivot))
     
     if metric == 'canberra':
-        time_id_neighbor = TimeIdNeighbor(f"{'-'.join(vals)}-canberra-tid", pivot, p=2, metric=metric, exclude_self = True, num_neibors=num_neibors)
+        time_id_neighbor = TimeIdNeighbor(f"{'-'.join(vals)}-canberra-tid", 
+                                        pivot, 
+                                        time_id, 
+                                        entity_id,
+                                        p=2, 
+                                        metric=metric, 
+                                        exclude_self = True, 
+                                        num_neibors=num_neibors
+                                    )
     elif metric == 'mahalanobis':
-        time_id_neighbor = TimeIdNeighbor(f"{'-'.join(vals)}-mahalanobis-tid", pivot, p=2, metric=metric, metric_params = {'VI': np.cov(pivot.values.T)}, num_neibors=num_neibors)
-    elif metric == 'minowski':
-        time_id_neighbor = TimeIdNeighbor(f"{'-'.join(vals)}-minowski-tid", pivot, p=2, metric=metric, num_neibors=num_neibors)
+        time_id_neighbor = TimeIdNeighbor(f"{'-'.join(vals)}-mahalanobis-tid", 
+                                          pivot, 
+                                        time_id, 
+                                        entity_id,
+                                          p=2, 
+                                          metric=metric, 
+                                          metric_params = {'VI': np.cov(pivot.values.T)}, 
+                                          num_neibors=num_neibors
+                                        )
+    elif metric == 'minkowski':
+        time_id_neighbor = TimeIdNeighbor(f"{'-'.join(vals)}-minkowski-tid", 
+                                          pivot, 
+                                        time_id, 
+                                        entity_id,
+                                          p=2, 
+                                          metric=metric, 
+                                          num_neibors=num_neibors
+                                        )
     else:
         raise ValueError(f'unsupported metric {metric}')
     
@@ -72,10 +97,20 @@ def eid_neighbor(df, vals, metric='minkowski', num_neibors=MAX_ENTITYID_NEIGHBOR
     Raises:
         ValueError: If the given metric is not supported.
     """
-    pivot = df.pivot(index='time_id', columns='entity_id', values=vals)
+    time_id = df.columns[0]
+    entity_id = df.columns[1]
+    pivot = df.pivot(index=time_id, columns=entity_id, values=vals)
     pivot = pivot.fillna(pivot.mean())
     pivot = pd.DataFrame(minmax_scale(pivot))
-    entity_id_neighbor = EntityIdNeighbor(f"{'-'.join(vals)}-{metric}-eid", pivot, p=1, metric=metric, exclude_self=True, num_neibors=num_neibors)
+    entity_id_neighbor = EntityIdNeighbor(f"{'-'.join(vals)}-{metric}-eid", 
+                                          pivot, 
+                                        time_id, 
+                                        entity_id,
+                                          p=1, 
+                                          metric=metric, 
+                                          exclude_self=True, 
+                                          num_neibors=num_neibors
+                                        )
 
     entity_id_neighbor.generate_neighbors()
     return entity_id_neighbor
@@ -94,7 +129,11 @@ def eid_dirichlet_emb(df, vals, n_components=3):
         pd.DataFrame: The DataFrame containing the Dirichlet allocation results.
     """
     lda = LatentDirichletAllocation(n_components=n_components, random_state=0)
-    pivot = df.pivot(index='entity_id', columns='time_id', values=vals)
+    
+    time_id = df.columns[0]
+    entity_id = df.columns[1]
+    pivot = df.pivot(index=time_id, columns=entity_id, values=vals)
+
     lda_df = pd.DataFrame(lda.fit_transform(pivot), index=pivot.columns)
     lda_df = pd.DataFrame(lda.fit_transform(pivot.transpose()), index=pivot.columns)
     for i in range(n_components):
@@ -116,7 +155,11 @@ def tid_dirichlet_emb(df, vals, n_components=3):
         pd.DataFrame: The DataFrame containing the Dirichlet allocation results.
     """
     lda = LatentDirichletAllocation(n_components=n_components, random_state=0)
-    pivot = df.pivot(index='time_id', columns='entity_id', values=vals)
+    
+    time_id = df.columns[0]
+    entity_id = df.columns[1]
+    pivot = df.pivot(index=time_id, columns=entity_id, values=vals)
+    
     lda_df = pd.DataFrame(lda.fit_transform(pivot.transpose()), index=pivot.columns)
     for i in range(n_components):
         pivot[f'time_id_emb{i}'] = pivot['entity_id'].map(lda_df[i])
@@ -158,9 +201,12 @@ def _add_ndf(ndf: Optional[pd.DataFrame], dst: pd.DataFrame) -> pd.DataFrame:
         pd.DataFrame: The resulting DataFrame after the addition.
 
     """
+
+    time_id = dst.columns[0]
+    entity_id = dst.columns[1]
     if ndf is None:
         for col in dst.columns:
-            if col in ['time_id', 'entity_id']:
+            if col in [time_id, entity_id]:
                 continue
             dst[col] = dst[col].astype(np.float32)
         return dst
@@ -230,6 +276,8 @@ def nn_features(df: pd.DataFrame,
     
     # make a copy of the original dataframe
     df2 = df.copy()
+    time_id = df.columns[0]
+    entity_id = df.columns[1]
 
     ndf: Optional[pd.DataFrame] = None
     dsts = Parallel(n_jobs=16)(delayed(nn_feature)(
@@ -248,11 +296,11 @@ def nn_features(df: pd.DataFrame,
             ndf = _add_ndf(ndf, dst)
     
     if ndf is not None:
-        df2 = pd.merge(df2, ndf, on=['time_id', 'entity_id'], how='left')
+        df2 = pd.merge(df2, ndf, on=[time_id, entity_id], how='left')
 
     return df2
 
-def make_nn_feature(df):
+def make_nn_feature(df, eid, tid):
     """
     Generate neural network features for the given dataframe.
 
@@ -262,6 +310,9 @@ def make_nn_feature(df):
     Returns:
     pandas.DataFrame: The dataframe with neural network features.
     """
+    cols = [tid, eid] + [i for i in df.columns if i not in [eid, tid]]
+    df = df[cols]
+
     tid_neighbors, eid_neigibors = load_neighbors(df)
     df = nn_features(df, tid_neighbors, {'open_diff1': [np.mean, np.std]})
     df = df.reset_index(drop=True)
