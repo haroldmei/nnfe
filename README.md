@@ -2,7 +2,12 @@
 
 nnfe is a useful machine learning tool for aggregating features from nearest neighbors for time series data. I saw this piece of code originally from kaggle competition [Optiver Realized Volatility Prediction](https://www.kaggle.com/competitions/optiver-realized-volatility-prediction/discussion/274970) where kaggle grandmaster [nyanp](https://www.kaggle.com/nyanpn) use this tool and won the first prize in the contest. The competition was fun, it has data leakage problem in the final test data, and the nearest neighbor feature extraction helped nyanp to exploit leaked data to stand out; and the problem dataset is extremely noisy so the problem remains unsolved. But the idea of using nearest neighbors to either extract features or simply as a part of the ensembling model is obviously very impressive to me, so I made some improvements to the code (especially add support to hide future data in neighbor generation to avoid data leakage), package it and made a lib so that it can be easily utilized by the data science community.
 
+## Quick start
+### Installation
+### Use from CLI
+### Use as python lib
 
+## Introduction
 
 Suppose we have the following time series data, which is the stock prices of AMZN, AAPL, GOOG and TSLA from 2024.02.01 ~ 2024.02.09.
 
@@ -62,4 +67,29 @@ $$
 If we can find the k most similar companies based on that companies open price series, we can again aggregate (such as take the mean of) the close prices on each day and include this new feature in the model training.
 
 ## Generalize the feature extraction steps
+
+Given a time series data with the columns (eid, tid, feature1, feature2, ...), suppose the data is aligned to $M$ entities and $N$ time steps. By making use of the following steps we can extract some very useful features.
+
+* Specify a list of observasion features that will be used to form feature vectors and generate nearest neighbors.
+  ```
+  from nnfe.aggregation import tid_neighbor, eid_neighbor, nn_features
+  
+  # find historical nearest neighbors by observing 'open' feature
+  tid_neighbors: List[Neighbor] = []
+  n = tid_neighbor(df, ['open'], metric='canberra')
+  n.generate_neighbors()
+  tid_neighbors.append(n)
+
+  # find most similar entity by observing 'open' feature
+  eid_neigibors: List[Neighbor] = []
+  n = eid_neigibor(df, ['open'], metric='canberra')
+  n.generate_neighbors()
+  eid_neigibors.append(eid_neighbor(df, ['open'], metric='canberra'))
+
+* Specify a list of features and corresponding aggregations to aggregation features from the nearest neighbors. The aggregation can be defined differently as a function.
+  ```
+  # aggregate features for 'close' feature from nearest neighbors using np.mean and np.std
+  agg = [ {'close': [np.mean, np.std]} ]
+  df = nn_features(df, tid_neighbors, agg)
+
 
