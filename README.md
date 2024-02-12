@@ -46,9 +46,9 @@ Suppose we have the following time series data, which is the stock prices of AMZ
 ## Scenario 1: Find nearest neighbors from history
 
 On 2024.02.09, when the market just opened. The open prices of the four companies are available and are  represented as a price vector: 
-$$
+```math
 \vec{p}=(171.22, 188.41, 148.03, 191.56)
-$$
+```
 
 If we are able to find the nearest price vector for all these companies' open prices from history, It does not seem too crazy for us to use that day's close prices to predict close prices of 2024.02.09. One step further, as a normal practice in data science, we can take one step further to find k nearest neighbors and use an aggregated close price (such as take the mean) to predict 2024.02.09's close price.
 
@@ -60,9 +60,9 @@ In this scenario we use only open price to form a feature vector for only 4 comp
 ## Scenario 2: Find most similar entities 
 
 The second scenario is to use an entity's feature time series to find the most similar entities from the collection of entities. In the above case an entity is a company's symbol. Suppose we use AMZN's open price series as the price vector:
-$$
+```math
 \vec{p}=(157.14, 169.75, 169.28, 170.28, 169.97, 169.08, 171.22)
-$$
+```
 
 If we can find the k most similar companies based on that companies open price series, we can again aggregate (such as take the mean of) the close prices on each day and include this new feature in the model training.
 
