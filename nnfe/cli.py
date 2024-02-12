@@ -21,12 +21,16 @@ def main():
     parser.add_argument('-o', '--output', type=str, help="specify the output file path")
     parser.add_argument('-e', '--eid', type=str, default = 'entity_id', help="specify the entity id column")
     parser.add_argument('-t', '--tid', type=str, default = 'time_id', help="specify the time id column")
+    parser.add_argument('-l', '--leakage', action=argparse.BooleanOptionalAction, help="Allow data leakage")
+    parser.add_argument('-r', '--reference', type=str, help="specify the reference columns to be used for finding nearest neighbors")
+    parser.add_argument('-f', '--feature', type=str, help="specify the feature to be used for aggregating nn features")
+    parser.add_argument('-a', '--aggregation', type=str, help="the aggregation function to be used")
     args = parser.parse_args()
 
     print("Arguments: ", args)
     
     df = pd.read_pickle(f'{args.input}')
-    df = make_nn_feature(df, args.eid, args.tid)
+    df = make_nn_feature(df, args.eid, args.tid, args.target, args.feature, args.aggregation, args.leakage)
     
     df.to_pickle(f'{args.output}')
     print(f'output file is saved at {args.output}')

@@ -64,7 +64,7 @@ class Neighbor:
             #print(self.neighbors)
 
 
-    def rearrange_feature_values(self, df: pd.DataFrame, feature_col: str) -> None:
+    def rearrange_feature_values(self, df: pd.DataFrame, feature_col: str, leakage=False) -> None:
         """
         Rearranges the feature values of the Neighbor.
 
@@ -99,7 +99,7 @@ class Neighbor:
         return dst
 
 class TimeIdNeighbor(Neighbor):
-    def rearrange_feature_values(self, df: pd.DataFrame, feature_col: str) -> None:
+    def rearrange_feature_values(self, df: pd.DataFrame, feature_col: str, leakage=False) -> None:
         """
         Rearranges the feature values based on the neighbors.
 
@@ -110,16 +110,17 @@ class TimeIdNeighbor(Neighbor):
         Returns:
             None
         """
-        # filter future data first for time series, retain the original order
-        for i in range(self.neighbors.shape[0]):
-            self.neighbors.setflags(write=1)
-            if self.metric == 'random':
-                self.neighbors[i, :] = np.where(self.neighbors[i,:] < i, self.neighbors[i,:], i-1 if i > 0 else 0) # a hack, makesure the item itself is not choosen for feature aggregation
-            else:
-                self.neighbors[i, :] = np.where(self.neighbors[i,:] < i, self.neighbors[i,:], i)
-            _, idx = np.unique(self.neighbors[i, :], return_index=True)
-            self.neighbors[i, :idx.shape[0]] = self.neighbors[i, np.sort(idx)]
-            self.neighbors[i, idx.shape[0]:] = self.neighbors[i, np.sort(idx)[-1]] #i
+        if not leakage:
+            # filter future data first for time series, retain the original order
+            for i in range(self.neighbors.shape[0]):
+                self.neighbors.setflags(write=1)
+                if self.metric == 'random':
+                    self.neighbors[i, :] = np.where(self.neighbors[i,:] < i, self.neighbors[i,:], i-1 if i > 0 else 0) # a hack, makesure the item itself is not choosen for feature aggregation
+                else:
+                    self.neighbors[i, :] = np.where(self.neighbors[i,:] < i, self.neighbors[i,:], i)
+                _, idx = np.unique(self.neighbors[i, :], return_index=True)
+                self.neighbors[i, :idx.shape[0]] = self.neighbors[i, np.sort(idx)]
+                self.neighbors[i, idx.shape[0]:] = self.neighbors[i, np.sort(idx)[-1]] #i
 
         feature_pivot = df.pivot(index=self.time_id, columns=self.entity_id, values=feature_col)
         feature_pivot = feature_pivot.fillna(feature_pivot.mean())
@@ -149,7 +150,7 @@ class TimeIdNeighbor(Neighbor):
         return f"time-id NN (name={self.name}, metric={self.metric}, p={self.p})"
 
 class EntityIdNeighbor(Neighbor):
-    def rearrange_feature_values(self, df: pd.DataFrame, feature_col: str) -> None:
+    def rearrange_feature_values(self, df: pd.DataFrame, feature_col: str, leakage=False) -> None:
         """Rearranges feature values based on entity-id nearest neighbors.
 
         Args:

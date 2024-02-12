@@ -136,7 +136,6 @@ def eid_dirichlet_emb(df, vals, n_components=3):
     return pivot
 
 
-
 def tid_dirichlet_emb(df, vals, n_components=3):
     """
     Load the Dirichlet allocation based on the given dataframe and parameters.
@@ -160,29 +159,39 @@ def tid_dirichlet_emb(df, vals, n_components=3):
         pivot[f'time_id_emb{i}'] = pivot['entity_id'].map(lda_df[i])
     return pivot
 
-def load_neighbors(df):
-    tid_neighbors: List[Neighbor] = []
-    eid_neigibors: List[Neighbor] = []
+def load_neighbors(df, features, type='tid'):
+    """
+    Load neighbors based on the given dataframe and features.
 
+    Args:
+        df (pandas.DataFrame): The dataframe containing the data.
+        features (list): The list of features to consider for neighbor generation.
+        type (str, optional): The type of neighbors to load. Defaults to 'tid'.
+
+    Returns:
+        list: The list of loaded neighbors.
+    """
+    neighbors = []
+    if type not in ['tid', 'eid']:
+        raise ValueError(f'unsupported type {type}')
     try:
         # keep the original dataframes
-        tid_neighbors.append(tid_neighbor(df, ['close'], metric='canberra'))
-        eid_neigibors.append(eid_neighbor(df, ['close'], metric='canberra'))
+        neighbors.append(
+            tid_neighbor(df, features, metric='canberra') if type == 'tid' else eid_neighbor(df, features, metric='canberra')
+        )
 
         print('@@@@@ Start fitting neighbors @@@@@')
         def generate_neighbors(n):
             n.generate_neighbors()
             return n
         
-        all_neibors = Parallel(n_jobs=-1)(delayed(generate_neighbors)(n) for n in tid_neighbors + eid_neigibors)
-        tid_neighbors = all_neibors[:len(tid_neighbors)]
-        eid_neigibors = all_neibors[len(tid_neighbors):]
-
+        all_neibors = Parallel(n_jobs=-1)(delayed(generate_neighbors)(n) for n in neighbors)
+        neighbors = all_neibors
     except Exception:
         print_trace('load_neighbors')
         exit(1)
 
-    return tid_neighbors, eid_neigibors
+    return neighbors
 
 def _add_ndf(ndf: Optional[pd.DataFrame], dst: pd.DataFrame) -> pd.DataFrame:
     """
@@ -210,7 +219,7 @@ def _add_ndf(ndf: Optional[pd.DataFrame], dst: pd.DataFrame) -> pd.DataFrame:
         return ndf
     
 
-def nn_feature(df, feature_col, aggs, neighbors, neighbor_sizes):
+def nn_feature(df, feature_col, aggs, neighbors, neighbor_sizes, leakage=False):
     """
     Generate nearest neighbor features based on the given DataFrame, feature column, aggregation methods,
     neighbor objects, and neighbor sizes.
@@ -221,6 +230,7 @@ def nn_feature(df, feature_col, aggs, neighbors, neighbor_sizes):
         aggs (list): A list of aggregation methods to be applied.
         neighbors (list): A list of neighbor objects.
         neighbor_sizes (list): A list of neighbor sizes.
+        leakage (bool, optional): Flag indicating whether to consider leakage. Defaults to False.
 
     Returns:
         list: A list of generated nearest neighbor features.
@@ -236,7 +246,7 @@ def nn_feature(df, feature_col, aggs, neighbors, neighbor_sizes):
         
         for nn in range(len(neighbors)):
             neighbor = copy.deepcopy(neighbors[nn])
-            neighbor.rearrange_feature_values(df, feature_col)
+            neighbor.rearrange_feature_values(df, feature_col, leakage=leakage)
             neighbors[nn] = neighbor
 
         for agg in aggs:
@@ -254,7 +264,8 @@ def nn_feature(df, feature_col, aggs, neighbors, neighbor_sizes):
 def nn_features(df: pd.DataFrame, 
                   neighbors: List[Neighbor], 
                   feature_cols,
-                  neigbor_sizes = [5]
+                  neigbor_sizes = [5],
+                  leakage=False # Disallow data leakage
                 ) -> pd.DataFrame:
     """
     Generate nearest neighbor features for a given dataframe.
@@ -264,6 +275,7 @@ def nn_features(df: pd.DataFrame,
         neighbors (List[Neighbor]): List of neighbor objects.
         feature_cols: Dictionary of feature columns.
         neigbor_sizes (List[int], optional): List of neighbor sizes. Defaults to [5].
+        leakage (bool, optional): Flag to disallow data leakage. Defaults to False.
 
     Returns:
         pd.DataFrame: The dataframe with nearest neighbor features added.
@@ -280,7 +292,8 @@ def nn_features(df: pd.DataFrame,
             feature_col, 
             feature_cols[feature_col], 
             neighbors, 
-            neigbor_sizes
+            neigbor_sizes,
+            leakage=leakage
         ) for feature_col in feature_cols.keys()
     )
 
@@ -295,12 +308,19 @@ def nn_features(df: pd.DataFrame,
 
     return df2
 
-def make_nn_feature(df, eid, tid):
+def make_nn_feature(df, eid, tid, target, feature, aggregation, leakage=False, nntype='tid'):
     """
     Generate neural network features for the given dataframe.
 
     Parameters:
     df (pandas.DataFrame): The input dataframe.
+    eid (str): The column name representing the entity ID.
+    tid (str): The column name representing the target ID.
+    target (str): Comma-separated string of column names representing the target variables.
+    feature (str): The column name representing the feature to be aggregated.
+    aggregation (str): The aggregation function to be applied to the feature.
+    leakage (bool, optional): Whether to include leakage prevention in the feature generation. Defaults to False.
+    nntype (str, optional): The type of nearest neighbors to consider. Defaults to 'tid'.
 
     Returns:
     pandas.DataFrame: The dataframe with neural network features.
@@ -308,8 +328,13 @@ def make_nn_feature(df, eid, tid):
     cols = [tid, eid] + [i for i in df.columns if i not in [eid, tid]]
     df = df[cols]
 
-    tid_neighbors, eid_neigibors = load_neighbors(df)
-    df = nn_features(df, tid_neighbors, {'open_diff1': [np.mean, np.std]})
+    targets = target.split(',')
+    for t in targets:
+        if t not in df.columns:
+            raise ValueError(f'{t} is not in the dataframe')
+
+    neighbors = load_neighbors(df, targets, nntype=nntype)
+    df = nn_features(df, neighbors, {feature: [aggregation]}, leakage=leakage)
     df = df.reset_index(drop=True)
     return df
         
